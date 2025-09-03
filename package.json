@@ -2,9 +2,14 @@
   "name": "alx-http",
   "version": "1.0.0",
   "description": "My own http library from scratch",
-  "main": "index.js",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev:watch": "tsx watch alx-http-test.ts",
+    "dev": "tsx alx-http-test.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "repository": {
     "type": "git",
@@ -15,5 +20,10 @@
   "bugs": {
     "url": "https://github.com/AlexAxenti/alx-http/issues"
   },
-  "homepage": "https://github.com/AlexAxenti/alx-http#readme"
+  "homepage": "https://github.com/AlexAxenti/alx-http#readme",
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
 }
