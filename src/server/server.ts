@@ -1,4 +1,5 @@
 import net, { Socket } from "net";
+import { FrameHttpRequest } from "../parser/frame-http-request.js";
 
 export default class AlxServer {
   private handler: (req: any, res: any) => void;
@@ -18,7 +19,9 @@ export default class AlxServer {
       buffer = Buffer.concat([buffer, chunk]);
 
       console.log("buffer:", buffer.toString("utf8"));
-      console.log("ends with", buffer.toString("utf8").endsWith("\r\n\r\n"));
+
+      const frameResult = FrameHttpRequest(buffer);
+      console.log("frameResult:", frameResult);
 
       socket.end();
     });
