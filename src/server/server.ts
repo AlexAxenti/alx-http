@@ -1,5 +1,6 @@
 import net, { Socket } from "net";
 import { FrameHttpRequest } from "../parser/frame-http-request.js";
+import { validateHttpProtocol } from "../parser/validate-http-protocol.js";
 
 export default class AlxServer {
   private handler: (req: any, res: any) => void;
@@ -22,6 +23,12 @@ export default class AlxServer {
 
       const frameResult = FrameHttpRequest(buffer);
       console.log("frameResult:", frameResult);
+
+      if (frameResult.result === "success") {
+        const validationResult = validateHttpProtocol(
+          frameResult.framedHttpRequest
+        );
+      }
 
       socket.end();
     });

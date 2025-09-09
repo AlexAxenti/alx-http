@@ -1,12 +1,7 @@
 export type FrameHttpRequestResult =
   | {
       result: "success";
-      bytesConsumed: number;
-      requestData: {
-        startLine: string;
-        headers: HeaderLine[];
-        body?: Buffer;
-      };
+      framedHttpRequest: FramedHttpRequest;
     }
   | {
       result: "error";
@@ -16,23 +11,14 @@ export type FrameHttpRequestResult =
       result: "incomplete";
     };
 
-interface StartLine {
-  method: MethodOptions;
-  path: string;
-  version: string;
-}
-
-const allowedMethods = [
-  "GET",
-  "POST",
-  "PUT",
-  "DELETE",
-  "PATCH",
-  "HEAD",
-  "OPTIONS",
-] as const;
-
-type MethodOptions = (typeof allowedMethods)[number];
+export type FramedHttpRequest = {
+  bytesConsumed: number;
+  requestData: {
+    startLine: string;
+    headers: HeaderLine[];
+    body?: Buffer;
+  };
+};
 
 type HeaderLine = [headerKey: string, headerValue: string];
 
@@ -79,58 +65,70 @@ export function FrameHttpRequest(buffer: Buffer): FrameHttpRequestResult {
       parsedString = parsedString.slice(nextCRLF + 2, parsedString.length);
     }
 
-    const startLineComponents = frameStartLine(startLine);
-    if (!startLineComponents) {
-      return {
-        result: "error",
-        error: new Error("malformed start line"),
-      };
-    }
+    // const startLineComponents = frameStartLine(startLine);
+    // if (!startLineComponents) {
+    //   return {
+    //     result: "error",
+    //     error: new Error("malformed start line"),
+    //   };
+    // }
+
+    const HTTP_BODY_SEPARATOR = Buffer.from(CRLF + CRLF, "utf8");
+    const httpSeperatorIndex = buffer.indexOf(HTTP_BODY_SEPARATOR);
+
+    const bodyStartBytes = httpSeperatorIndex + HTTP_BODY_SEPARATOR.length;
+    let body = Buffer.alloc(0);
 
     const contentLengthHeader = findHeader(headers, "Content-Length");
-    if (
-      (startLineComponents.method === "POST" ||
-        startLineComponents.method === "PUT" ||
-        startLineComponents.method === "PATCH") &&
-      contentLengthHeader === null
-    ) {
-      return {
-        result: "error",
-        error: new Error("missing content lenght"),
-      };
-    }
 
     let contentLength = 0;
+
+    // If content length, parse body
     if (contentLengthHeader) {
       contentLength = parseInt(contentLengthHeader[1], 10);
-    }
-    const HTTP_BODY_SEPARATOR = Buffer.from(CRLF + CRLF, "utf8");
-    const httpBodyIndex = buffer.indexOf(HTTP_BODY_SEPARATOR);
 
-    const bodyStart = httpBodyIndex + HTTP_BODY_SEPARATOR.length;
-    const body = buffer.slice(bodyStart, bodyStart + contentLength);
+      // If request does not match buffer length, stream possibly not fully received
+      // TODO: add timeout incase the stream is fully received and still doesn't align
+      if (bodyStartBytes + contentLength > buffer.length) {
+        return {
+          result: "incomplete",
+        };
+      }
+      body = buffer.slice(bodyStartBytes, bodyStartBytes + contentLength);
+    } else {
+      if (bodyStartBytes < buffer.length) {
+        return {
+          result: "error",
+          error: new Error("missing content length"),
+        };
+      }
+    }
 
     console.log("body:", body.toString("utf8"));
     console.log("body length: ", body.length);
 
     // Calculate bytes consumed
-    const bytesConsumed = bodyStart + body.length;
+    const bytesConsumed = bodyStartBytes + body.length;
 
     console.log("body length", body.length);
 
     console.log("content length", contentLengthHeader);
 
-    console.log("startLineComponents", startLineComponents);
+    // console.log("startLineComponents", startLineComponents);
     console.log("headers", headers);
 
-    return {
-      result: "success",
+    const framedHttpRequest: FramedHttpRequest = {
       bytesConsumed,
       requestData: {
         startLine,
         headers,
         body: body.length > 0 ? body : undefined,
       },
+    };
+
+    return {
+      result: "success",
+      framedHttpRequest,
     };
   } catch (error) {
     return {
@@ -144,31 +142,35 @@ function findHeader(
   headers: HeaderLine[],
   headerKey: string
 ): HeaderLine | null {
+  let foundHeader: HeaderLine | null = null;
   for (const header of headers) {
     if (header[0] === headerKey) {
-      return header;
+      if (foundHeader && foundHeader[1] !== header[1]) {
+        //return error if duplicate with different values
+      }
+      foundHeader = header;
     }
   }
 
-  return null;
+  return foundHeader;
 }
 
-// TODO: Instead of null return proper error
-function frameStartLine(startLine: string): StartLine | null {
-  const parts = startLine.split(" ");
-  if (parts.length !== 3) {
-    return null;
-  }
+// // TODO: Instead of null return proper error
+// function frameStartLine(startLine: string): StartLine | null {
+//   const parts = startLine.split(" ");
+//   if (parts.length !== 3) {
+//     return null;
+//   }
 
-  const [method, path, version] = parts;
+//   const [method, path, version] = parts;
 
-  if (!isMethodOption(method)) {
-    return null;
-  }
+//   if (!isMethodOption(method)) {
+//     return null;
+//   }
 
-  return { method, path, version };
-}
+//   return { method, path, version };
+// }
 
-function isMethodOption(method: string): method is MethodOptions {
-  return allowedMethods.includes(method as MethodOptions);
-}
+// function isMethodOption(method: string): method is MethodOptions {
+//   return allowedMethods.includes(method as MethodOptions);
+// }
